@@ -45,29 +45,7 @@ A controlled, production-safe adversary emulation that backdoors an S3 bucket po
 
 ## Minimal IAM Scope (example)
 
-Use a role restricted to this technique in a non-production account. Adjust ARNs to your environment and add logging/assume-role as needed.
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetBucketPolicy",
-        "s3:PutBucketPolicy",
-        "s3:DeleteBucketPolicy"
-      ],
-      "Resource": ["arn:aws:s3:::stratus-red-team-*"]
-    }
-  ]
-}
-Reproduce Safely
-Run only in an owned, isolated account with explicit approvals.
-
-bash
-Copy
-Edit
 # Pre-reqs: Stratus, Terraform, AWS CLI; authenticated with least privilege.
 
 # 1) Provision prerequisites (bucket, helpers)
