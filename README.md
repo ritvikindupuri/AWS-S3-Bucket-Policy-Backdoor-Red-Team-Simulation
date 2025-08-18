@@ -42,9 +42,27 @@ A controlled, production-safe adversary emulation that backdoors an S3 bucket po
 - Flow: verify baseline → detonate (attach malicious policy) → verify success → revert (remove policy) → cleanup (destroy infra).
 
 ---
+### Minimal IAM Scope (example)
 
-## Minimal IAM Scope (example)
+Use a role restricted to this technique in a non-production account. Adjust ARNs to your environment and add logging/assume-role as needed.
 
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketPolicy",
+        "s3:PutBucketPolicy",
+        "s3:DeleteBucketPolicy"
+      ],
+      "Resource": ["arn:aws:s3:::stratus-red-team-*"]
+    }
+  ]
+}
+
+---
 
 # Pre-reqs: Stratus, Terraform, AWS CLI; authenticated with least privilege.
 
@@ -75,50 +93,40 @@ aws s3api get-bucket-policy --bucket "$TECH_BUCKET"          # expect: NoSuchBuc
 # 7) Cleanup — tear everything down
 stratus cleanup aws.exfiltration.s3-backdoor-bucket-policy
 # expect: COLD
-Evidence and Results
 
-<img width="800" height="368" alt="image" src="https://github.com/user-attachments/assets/a00ea285-5674-481e-ab55-005db2f0bdd6" />
+<img width="800" height="368" alt="image" src="https://github.com/user-attachments/assets/0f0a1699-94a9-46f4-af87-c03e7413bbf2" />
 
 Figure 2 — Technique reaches DETONATED and get-bucket-policy returns a policy JSON, confirming the malicious attachment and newly enabled access path.
 
-<img width="800" height="254" alt="image" src="https://github.com/user-attachments/assets/2140f6bf-21ca-483b-a723-c51e0aeb5b05" />
+<img width="800" height="254" alt="image" src="https://github.com/user-attachments/assets/16f02f5e-2eba-4125-9b15-e6c453763a97" />
 
-Figure 3 — After stratus revert, status returns to WARM and get-bucket-policy yields NoSuchBucketPolicy, proving the backdoor removal while keeping infra available.
+Figure 3 — After stratus revert, status returns to WARM and get-bucket-policy yields NoSuchBucketPolicy, proving backdoor removal while keeping infra available.
 
-<img width="800" height="169" alt="image" src="https://github.com/user-attachments/assets/555ef16f-5a6a-4bc2-af57-424d5d89b702" />
+<img width="800" height="169" alt="image" src="https://github.com/user-attachments/assets/14a3f2d4-ab81-4e69-ad4b-806b2d0245ec" />
 
 Figure 4 — stratus cleanup destroys prerequisites via Terraform; status shows COLD, returning the environment to a production-safe state.
 
-What This Proves
-S3 access can be covertly enabled by bucket-policy manipulation without touching object data.
+### What This Proves
 
-Automated lifecycle prevents drift and guarantees safe rollback.
+- S3 access can be covertly enabled by bucket-policy manipulation without touching object data.
+- Automated lifecycle prevents drift and guarantees safe rollback.
+- Command-level checks provide clear before/after evidence for audit and learning.
 
-Command-level checks provide clear before/after evidence for audit and learning.
+### ATT&CK-Style Mapping (conceptual)
 
-ATT&CK-Style Mapping (conceptual)
-T1567.002 — Exfiltration to Cloud Storage (exfiltration over web service)
+- T1567.002 — Exfiltration to Cloud Storage (exfiltration over web service)
+- Related: control-plane abuse; defense evasion via policy changes
 
-Related: control-plane abuse; defense evasion via policy changes
+### Blue-Team Detection and Hardening
 
-Blue-Team Detection and Hardening
-Detect
+#### Detect
+- CloudTrail: monitor `PutBucketPolicy`, `DeleteBucketPolicy`, `GetBucketPolicy`
+- EventBridge: rules on bucket-policy creation/changes for sensitive buckets
+- AWS Config: conformance rules for restrictive S3 policies
+- Amazon Macie / DLP: alert on sensitive object access or movement
 
-CloudTrail: monitor PutBucketPolicy, DeleteBucketPolicy, GetBucketPolicy
-
-EventBridge: rules on policy creation/changes for sensitive buckets
-
-AWS Config: conformance rules for restrictive S3 policies
-
-Amazon Macie / DLP: alert on sensitive object access or movement
-
-Prevent
-
-Least privilege for identities allowed to modify S3 bucket policies
-
-S3 Block Public Access and organization-level SCP guardrails
-
-Change-control workflows for policy edits on crown-jewel buckets
-
-Resource tagging and boundary policies to protect sensitive stores
-
+#### Prevent
+- Least privilege for identities allowed to modify S3 bucket policies
+- S3 Block Public Access and organization-level SCP guardrails
+- Change-control workflows for policy edits on crown-jewel buckets
+- Resource tagging and boundary policies to protect sensitive stores
