@@ -46,23 +46,6 @@ A controlled, production-safe adversary emulation that backdoors an S3 bucket po
 
 Use a role restricted to this technique in a non-production account. Adjust ARNs to your environment and add logging/assume-role as needed.
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetBucketPolicy",
-        "s3:PutBucketPolicy",
-        "s3:DeleteBucketPolicy"
-      ],
-      "Resource": ["arn:aws:s3:::stratus-red-team-*"]
-    }
-  ]
-}
-
----
 
 # Pre-reqs: Stratus, Terraform, AWS CLI; authenticated with least privilege.
 
