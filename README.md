@@ -60,9 +60,7 @@ Use a tightly scoped role in a non-prod account. Example (adjust ARNs to your en
 Reproduce Safely
 Run only in an owned, isolated account with explicit approvals.
 
-bash
-Copy
-Edit
+
 # Pre-reqs: Stratus installed; Terraform and AWS CLI available; AWS auth scoped with least privilege.
 
 # 1) Provision prerequisites (bucket, etc.)
