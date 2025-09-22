@@ -1,115 +1,48 @@
-# AWS S3 Bucket Policy Backdoor — Red Team Simulation (Stratus Red Team)
+# AWS Red Team Simulation: S3 Bucket Policy Exfiltration via Stratus
 
-A controlled, production-safe adversary emulation that backdoors an S3 bucket policy to grant unauthorized object access, then verifies, reverts, and fully cleans up.
+This project demonstrates a controlled, automated red team exercise simulating a common data exfiltration technique in AWS. Using the open-source attack framework **Stratus Red Team**, I successfully backdoored an S3 bucket policy to grant unauthorized access and then safely reverted the environment to its original state.
 
----
-
-## TL;DR
-
-- Objective: demonstrate how changing an S3 bucket policy can silently enable data exfiltration.
-- Method: Stratus Red Team automates warmup → detonate → revert → cleanup; Terraform provisions/tears down prerequisites; AWS CLI validates state.
-- Result: policy attached during detonation, removed on revert, and all resources destroyed on cleanup (COLD).
+The entire attack lifecycle—from provisioning infrastructure with Terraform, to detonating the attack, and cleaning up—was managed through Stratus, showcasing a modern, programmatic approach to testing and validating cloud security postures.
 
 ---
+## Attack Methodology & Workflow
 
-## Skills / Hiring Signals
+The simulation follows a structured methodology where an attacker, from an external host, uses Stratus Red Team to orchestrate the exploit. The framework abstracts the attack into a clean, multi-stage lifecycle.
 
-- Cloud control-plane attack simulation (S3 bucket policy manipulation)
-- Infrastructure-as-Code and lifecycle hygiene (Terraform + Stratus)
-- Evidence-driven validation (CLI before/after proofs)
-- Safety guardrails (scoped IAM, non-prod isolation, full teardown)
+1.  **Warmup:** Stratus uses Terraform to provision the necessary prerequisite infrastructure in the target AWS account (e.g., the target S3 bucket).
+2.  **Detonate:** Stratus applies the malicious configuration—in this case, attaching a backdoor policy to the S3 bucket that grants an external IAM principal `s3:*` access.
+3.  **Verification:** The attacker uses the AWS CLI to verify that the malicious policy is active and that they have gained unauthorized access.
+4.  **Revert & Cleanup:** Stratus safely reverts the malicious change and then uses Terraform to destroy all created infrastructure, leaving the environment in a clean, "cold" state.
 
----
-
-## Versions / Requirements
-
-- Stratus Red Team: current (technique `aws.exfiltration.s3-backdoor-bucket-policy`)
-- Terraform: v1.x
-- AWS CLI: v2.x
-- AWS Account: non-production only, with a tightly scoped role
-- jq (optional) for JSON formatting
+<img src="./assets/Diagram.jpg" width="800" alt="Diagram of the S3 Bucket Policy Exploit Workflow">
+*<p align="center">Figure 1: The attack workflow, showing the interaction between the attacker, Stratus, and the AWS environment.</p>*
 
 ---
+## Execution: Detonation & Verification
 
-## Architecture
+The core of the simulation is the "detonation" phase. After `warming up` the technique, the `stratus detonate` command was executed. This action applies the malicious bucket policy.
 
-<img width="800" height="336" alt="image" src="https://github.com/user-attachments/assets/d4064f8e-7428-4cbc-bc06-853b1278eca2" />
-*Figure 1 — Red team host orchestrates Stratus against the AWS environment, backdooring an S3 bucket policy, validating access/policy state, then reverting and cleaning up.*
+**Analysis:** The screenshot below captures the successful detonation. I immediately ran `aws s3api get-bucket-policy` against the target bucket. The returned JSON policy is the proof of a successful exploit: it contains a statement granting `s3:*` permissions to an external `root` user, effectively backdooring the bucket. The Stratus status confirms the technique is `DETONATED`.
 
-**Components**
-- Attacker zone: host with Stratus, Terraform, and AWS CLI.
-- AWS environment: ephemeral S3 bucket and its bucket policy (optionally a test IAM role).
-- Flow: verify baseline → detonate (attach malicious policy) → verify success → revert (remove policy) → cleanup (destroy infra).
+<img src="./assets/Attack Workflow complete.jpg" width="800" alt="Terminal showing the Stratus detonate command and the malicious policy">
+*<p align="center">Figure 2: Successful detonation and verification of the malicious S3 bucket policy.</p>*
 
 ---
-### Minimal IAM Scope (example)
+## Remediation: Revert & Cleanup
 
-Use a role restricted to this technique in a non-production account. Adjust ARNs to your environment and add logging/assume-role as needed.
+A critical part of any professional red team exercise is the ability to safely undo all actions. Stratus manages this through its `revert` and `cleanup` commands.
 
+**Analysis:** The `stratus revert` command cleanly removes the malicious bucket policy. To validate this, I immediately ran `aws s3api get-bucket-policy` again. The command now returns a `NoSuchBucketPolicy` error, providing definitive proof that the backdoor was removed and the bucket is no longer exposed. The Stratus status returns to `WARM`, indicating the environment is safe. The final `stratus cleanup` command (not pictured) then destroys all infrastructure.
 
-# Pre-reqs: Stratus, Terraform, AWS CLI; authenticated with least privilege.
+<img src="./assets/Revert and Policy Check.jpg" width="800" alt="Terminal showing the Stratus revert command and the policy verification failure">
+*<p align="center">Figure 3: Successful reversion of the attack, confirmed by the inability to retrieve the malicious policy.</p>*
 
-# 1) Provision prerequisites (bucket, helpers)
-stratus warmup aws.exfiltration.s3-backdoor-bucket-policy
-stratus status aws.exfiltration.s3-backdoor-bucket-policy   # expect: WARM
+---
+## 🚀 Skills & Technologies Demonstrated
 
-# Set the technique bucket name shown in Stratus output:
-export TECH_BUCKET=<technique-bucket-name>
-
-# 2) Baseline check — bucket should have no policy
-aws s3api get-bucket-policy --bucket "$TECH_BUCKET"          # expect: NoSuchBucketPolicy
-
-# 3) Detonate — attach malicious bucket policy
-stratus detonate aws.exfiltration.s3-backdoor-bucket-policy
-stratus status aws.exfiltration.s3-backdoor-bucket-policy   # expect: DETONATED
-
-# 4) Verify — policy now present (malicious backdoor)
-aws s3api get-bucket-policy --bucket "$TECH_BUCKET"
-
-# 5) Revert — remove the malicious policy only
-stratus revert aws.exfiltration.s3-backdoor-bucket-policy
-stratus status aws.exfiltration.s3-backdoor-bucket-policy   # expect: WARM
-
-# 6) Confirm removal
-aws s3api get-bucket-policy --bucket "$TECH_BUCKET"          # expect: NoSuchBucketPolicy
-
-# 7) Cleanup — tear everything down
-stratus cleanup aws.exfiltration.s3-backdoor-bucket-policy
-# expect: COLD
-
-<img width="800" height="368" alt="image" src="https://github.com/user-attachments/assets/0f0a1699-94a9-46f4-af87-c03e7413bbf2" />
-
-Figure 2 — Technique reaches DETONATED and get-bucket-policy returns a policy JSON, confirming the malicious attachment and newly enabled access path.
-
-<img width="800" height="254" alt="image" src="https://github.com/user-attachments/assets/16f02f5e-2eba-4125-9b15-e6c453763a97" />
-
-Figure 3 — After stratus revert, status returns to WARM and get-bucket-policy yields NoSuchBucketPolicy, proving backdoor removal while keeping infra available.
-
-<img width="800" height="169" alt="image" src="https://github.com/user-attachments/assets/14a3f2d4-ab81-4e69-ad4b-806b2d0245ec" />
-
-Figure 4 — stratus cleanup destroys prerequisites via Terraform; status shows COLD, returning the environment to a production-safe state.
-
-### What This Proves
-
-- S3 access can be covertly enabled by bucket-policy manipulation without touching object data.
-- Automated lifecycle prevents drift and guarantees safe rollback.
-- Command-level checks provide clear before/after evidence for audit and learning.
-
-### ATT&CK-Style Mapping (conceptual)
-
-- T1567.002 — Exfiltration to Cloud Storage (exfiltration over web service)
-- Related: control-plane abuse; defense evasion via policy changes
-
-### Blue-Team Detection and Hardening
-
-#### Detect
-- CloudTrail: monitor `PutBucketPolicy`, `DeleteBucketPolicy`, `GetBucketPolicy`
-- EventBridge: rules on bucket-policy creation/changes for sensitive buckets
-- AWS Config: conformance rules for restrictive S3 policies
-- Amazon Macie / DLP: alert on sensitive object access or movement
-
-#### Prevent
-- Least privilege for identities allowed to modify S3 bucket policies
-- S3 Block Public Access and organization-level SCP guardrails
-- Change-control workflows for policy edits on crown-jewel buckets
-- Resource tagging and boundary policies to protect sensitive stores
+* **Red Team Operations:** Executing and managing the lifecycle of a simulated cloud attack.
+* **Stratus Red Team:** Using an automated framework to test and validate cloud security defenses.
+* **AWS S3 & IAM:** Deep understanding of S3 bucket policies, IAM principals, and how they can be misconfigured for data exfiltration.
+* **Terraform & IaC:** Using Infrastructure as Code to programmatically provision and manage cloud resources for attack simulations.
+* **AWS CLI:** Using command-line tools to interact with the AWS API for verification and analysis.
+* **Cloud Security Posture Management:** Simulating attacks to identify weaknesses in cloud configurations.
