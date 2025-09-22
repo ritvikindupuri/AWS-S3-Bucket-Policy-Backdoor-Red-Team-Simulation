@@ -10,12 +10,12 @@ echo "--- Starting Stratus Red Team Simulation: $TECHNIQUE ---"
 
 # --- Step 1: Warmup ---
 echo ""
-echo "🔥 Warming up the technique (Terraform apply)..."
+echo " Warming up the technique (Terraform apply)..."
 stratus warmup $TECHNIQUE
 
 # --- Step 2: Detonate ---
 echo ""
-echo "💥 Detonating the technique (Applying malicious policy)..."
+echo " Detonating the technique (Applying malicious policy)..."
 stratus detonate $TECHNIQUE
 BUCKET_NAME=$(stratus show $TECHNIQUE --output terraform-output | grep "bucket_name" | awk '{print $3}' | tr -d '"')
 echo "Target bucket identified: $BUCKET_NAME"
